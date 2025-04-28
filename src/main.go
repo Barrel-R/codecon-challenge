@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"log"
+	"maps"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -56,8 +57,8 @@ type Login struct {
 }
 
 type ApiResponse struct {
-	Status int         `json:"status"`
-	Body   interface{} `json:"body"`
+	Status int `json:"status"`
+	Body   any `json:"body"`
 }
 
 type StoreUsersResponse struct {
@@ -66,27 +67,27 @@ type StoreUsersResponse struct {
 }
 
 type SuperuserResponse struct {
-	Timestamp         time.Time     `json:"timestamp"`
-	Execution_time_ms time.Duration `json:"execution_time_ms"`
-	Data              []User        `json:"data"`
+	Timestamp         time.Time `json:"timestamp"`
+	Execution_time_ms int64     `json:"execution_time_ms"`
+	Data              []User    `json:"data"`
 }
 
 type TopCountriesResponse struct {
-	Timestamp         time.Time     `json:"timestamp"`
-	Execution_time_ms time.Duration `json:"execution_time_ms"`
-	Countries         []Country     `json:"countries"`
+	Timestamp         time.Time `json:"timestamp"`
+	Execution_time_ms int64     `json:"execution_time_ms"`
+	Countries         []Country `json:"countries"`
 }
 
 type InsightsResponse struct {
 	Timestamp         time.Time     `json:"timestamp"`
-	Execution_time_ms time.Duration `json:"execution_time_ms"`
+	Execution_time_ms int64         `json:"execution_time_ms"`
 	Teams             []TeamInsight `json:"teams"`
 }
 
 type ActiveUsersPerDayResponse struct {
-	Timestamp         time.Time     `json:"timestamp"`
-	Execution_time_ms time.Duration `json:"execution_time_ms"`
-	Logins            []Login       `json:"logins"`
+	Timestamp         time.Time `json:"timestamp"`
+	Execution_time_ms int64     `json:"execution_time_ms"`
+	Logins            []Login   `json:"logins"`
 }
 
 type Evaluation struct {
@@ -116,12 +117,7 @@ func (t *CustomTime) UnmarshalJSON(b []byte) (err error) {
 	return
 }
 
-const (
-	TEST_USER_COUNT = 1000
-)
-
-var idCheck = make(map[uuid.UUID]bool)
-var db = make([]User, TEST_USER_COUNT)
+var db = make(map[uuid.UUID]User)
 
 func storeUsersInMemory(ctx *gin.Context) int {
 	formfile, err := ctx.FormFile("arquivos")
@@ -160,12 +156,7 @@ func storeUsersInMemory(ctx *gin.Context) int {
 			log.Fatalf("Erro ao salvar usuário na memória: %v\n", err.Error())
 		}
 
-		if idCheck[user.Id] {
-			continue
-		}
-
-		db = append(db, *user)
-		idCheck[user.Id] = true
+		db[user.Id] = *user
 	}
 
 	token, err = decoder.Token()
@@ -195,6 +186,18 @@ func getSuperusers() []User {
 
 func getTopCountries() []Country {
 	var countries []Country
+	var countryMap = make(map[string]int)
+
+	for _, user := range db {
+		if user.Score >= 900 && user.Ativo {
+			countryMap[user.Pais]++
+		}
+	}
+
+	for country, count := range maps.All(countryMap) {
+		countryObj := Country{country, count}
+		countries = append(countries, countryObj)
+	}
 
 	return countries
 }
@@ -215,13 +218,7 @@ func setupRouter() *gin.Engine {
 			res,
 		}
 
-		data, err := json.Marshal(apiRes)
-
-		if err != nil {
-			log.Fatalf("Erro ao estruturar resposta da API: %v\n", err)
-		}
-
-		ctx.Data(200, "json", data)
+		ctx.JSON(200, apiRes)
 	})
 	r.GET("/superusers", func(ctx *gin.Context) {
 		start := time.Now()
@@ -229,7 +226,7 @@ func setupRouter() *gin.Engine {
 
 		res := SuperuserResponse{
 			Timestamp:         time.Now(),
-			Execution_time_ms: time.Duration(time.Since(start).Milliseconds()),
+			Execution_time_ms: time.Since(start).Milliseconds(),
 			Data:              users,
 		}
 
@@ -238,13 +235,7 @@ func setupRouter() *gin.Engine {
 			res,
 		}
 
-		data, err := json.Marshal(apiRes)
-
-		if err != nil {
-			log.Fatalf("Erro ao estruturar dados de superusuários: %v\n", err)
-		}
-
-		ctx.Data(200, "json", data)
+		ctx.JSON(200, apiRes)
 	})
 	r.GET("/top-countries", func(ctx *gin.Context) {
 		start := time.Now()
@@ -252,7 +243,7 @@ func setupRouter() *gin.Engine {
 
 		res := TopCountriesResponse{
 			Timestamp:         time.Now(),
-			Execution_time_ms: time.Since(start),
+			Execution_time_ms: time.Since(start).Milliseconds(),
 			Countries:         countries,
 		}
 
@@ -261,13 +252,7 @@ func setupRouter() *gin.Engine {
 			res,
 		}
 
-		data, err := json.Marshal(apiRes)
-
-		if err != nil {
-			log.Fatalf("Erro ao estruturar dados dos países: %v", err)
-		}
-
-		ctx.Data(200, "json", data)
+		ctx.JSON(200, apiRes)
 	})
 
 	return r
