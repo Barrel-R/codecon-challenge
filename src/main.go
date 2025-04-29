@@ -240,6 +240,10 @@ func getTopCountries() ([]Country, error) {
 	}
 
 	for country, count := range maps.All(countryMap) {
+		if len(countries) >= 5 {
+			return countries, nil
+		}
+
 		countryObj := Country{country, count}
 		countries = append(countries, countryObj)
 	}
