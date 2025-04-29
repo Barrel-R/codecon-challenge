@@ -7,6 +7,7 @@ import (
 	"log"
 	"maps"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -260,7 +261,7 @@ func getTeamInsights() ([]TeamInsight, error) {
 	var activeUsers = make(map[string]int)
 
 	for _, user := range db {
-		if !Has(teamNames, user.Equipe.Nome) {
+		if !slices.Contains(teamNames, user.Equipe.Nome) {
 			teamNames = append(teamNames, user.Equipe.Nome)
 		}
 
